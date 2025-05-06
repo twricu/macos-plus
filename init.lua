@@ -573,14 +573,14 @@ mouseLinearReverseScroll()
 clickMouseSideButtonSwitchDesktop()
 
 -- 定时同步文件到iCloud
-syncFileToICloud({
-  {
-    sourceFile = "/Users/qdz/Desktop/temp.txt",
-    targetDir = os.getenv("HOME") .. "/Library/Mobile Documents/com~apple~CloudDocs",
-    maxBackupNumber = 5,
-    backupIntervalSeconds = 60 * 30
-  },
-})
+-- syncFileToICloud({
+--   {
+--     sourceFile = "/Users/qdz/Desktop/temp.txt",
+--     targetDir = os.getenv("HOME") .. "/Library/Mobile Documents/com~apple~CloudDocs",
+--     maxBackupNumber = 5,
+--     backupIntervalSeconds = 60 * 30
+--   },
+-- })
 
 -- 在Hammerspoon退出时执行相关操作
 hs.shutdownCallback = function()
