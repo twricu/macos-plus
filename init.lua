@@ -4,6 +4,7 @@ hs.alert.show("Config loaded")
 
 -- 输入法枚举
 InputMethodEnum = {
+  -- mac自带的，无法删除的输入法，以键盘布局存在
   english = {
     id = "com.apple.keylayout.ABC",
     name = "ABC"
@@ -138,16 +139,6 @@ local function bindF13Key(key, fn, shouldRepeat)
       -- repeatfn (重复时触发)
       function() end
     )
-  end
-end
-
-
--- 切换输入法
-local function switchInputMethod()
-  if hs.keycodes.currentSourceID() == InputMethodEnum.english.id then
-    hs.keycodes.currentSourceID(InputMethodEnum.shuangpin.id)
-  else
-    hs.keycodes.currentSourceID(InputMethodEnum.english.id)
   end
 end
 
@@ -372,6 +363,50 @@ local function clickMouseSideButtonSwitchDesktop()
     return false
   end)
   ClickMouseSideEvent:start()
+end
+
+
+-- 获取所有输入法
+local function getAllInputSources()
+  local sources = {}
+
+  -- 获取所有键盘布局
+  local layouts = hs.keycodes.layouts(true)
+  for _, sourceID in pairs(layouts) do
+    table.insert(sources, sourceID)
+  end
+
+  -- 获取所有输入法
+  local methods = hs.keycodes.methods(true)
+  for _, sourceID in pairs(methods) do
+    table.insert(sources, sourceID)
+  end
+
+  return sources
+end
+
+
+-- 循环切换输入法
+local function switchInputMethod()
+  local sources = getAllInputSources()
+  if #sources == 0 then
+    return
+  end
+
+  local currentID = hs.keycodes.currentSourceID()
+
+  -- 获取当前输入法的索引
+  local currentIndex = 1
+  for i, id in ipairs(sources) do
+    if id == currentID then
+      currentIndex = i
+      break
+    end
+  end
+
+  -- 获取下一个输入法的索引
+  local nextIndex = currentIndex % #sources + 1
+  hs.keycodes.currentSourceID(sources[nextIndex])
 end
 
 
