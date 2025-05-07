@@ -21,6 +21,14 @@ InputMethodEnum = {
     id = "com.sogou.inputmethod.sogou.pinyin",
     name = "搜狗"
   },
+  wubi = {
+    id = "com.apple.inputmethod.SCIM.WBX",
+    name = "五笔"
+  },
+  fantipinyin = {
+    id = "com.apple.inputmethod.TCIM.Pinyin",
+    name = "繁体拼音"
+  },
 }
 
 
