@@ -238,16 +238,17 @@ local function inputMethodSwitchAlert()
       return
     end
 
-    -- 0居中 1顶部 2底部
-    if currentSourceID == InputMethodEnum.english.id then
-      hs.alert.show(InputMethodEnum.english.name, { atScreenEdge = 2 }, 0.6)
-    elseif currentSourceID == InputMethodEnum.pinyin.id then
-      hs.alert.show(InputMethodEnum.pinyin.name, { atScreenEdge = 2 }, 0.6)
-    elseif currentSourceID == InputMethodEnum.shuangpin.id then
-      hs.alert.show(InputMethodEnum.shuangpin.name, { atScreenEdge = 2 }, 0.6)
-    elseif currentSourceID == InputMethodEnum.sougou.id then
-      hs.alert.show(InputMethodEnum.sougou.name, { atScreenEdge = 2 }, 0.6)
-    else
+    local found = false
+    for _, method in pairs(InputMethodEnum) do
+      if method.id == currentSourceID then
+        -- atScreenEdge 0居中 1顶部 2底部
+        hs.alert.show(method.name, { atScreenEdge = 2 }, 0.6)
+        found = true
+        break
+      end
+    end
+
+    if not found then
       hs.alert.show("未知的输入法：" .. currentSourceID)
     end
 
