@@ -29,6 +29,10 @@ InputMethodEnum = {
     id = "com.apple.inputmethod.TCIM.Pinyin",
     name = "繁体拼音"
   },
+  fantizhuyin = {
+    id = "com.apple.keylayout.ZhuyinBopomofo",
+    name = "繁体注音"
+  },
 }
 
 
