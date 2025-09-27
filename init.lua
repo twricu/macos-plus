@@ -4,7 +4,7 @@ hs.alert.show("Config loaded")
 
 -- 输入法枚举
 InputMethodEnum = {
-  -- mac自带的，无法删除的输入法，以键盘布局存在
+  -- Mac自带的，无法删除的输入法，以键盘布局存在
   english = {
     id = "com.apple.keylayout.ABC",
     name = "ABC"
@@ -101,6 +101,8 @@ local function remapCapsLockToF13()
 
   F13HotkeyBinding = hs.hotkey.bind({}, 'f13', function()
     F13Modal:enter()
+    -- 按下就发送 Esc，不关注 modal 状态
+    sendKey({}, "escape")
   end, function()
     F13Modal:exit()
   end)
@@ -298,7 +300,7 @@ end
 
 
 SwitchInputMethodWatcher = nil
--- 聚焦app时切换指定输入法
+-- 聚焦 App 时切换指定输入法
 local function focusAppSwitchInputMethod(appMapping)
   SwitchInputMethodWatcher = hs.application.watcher.new(function(name, event, app)
     if app == nil then
@@ -345,7 +347,7 @@ local function mouseLinearReverseScroll()
       event:setFlags(newFlags)
     end
 
-    -- scrollWheelEventDeltaAxis1的值应该是行，不是像素
+    -- scrollWheelEventDeltaAxis1 的值应该是行，不是像素
     local delta = event:getProperty(hs.eventtap.event.properties.scrollWheelEventDeltaAxis1)
     -- 线性加变为每次滚动3行
     event:setProperty(hs.eventtap.event.properties.scrollWheelEventDeltaAxis1,
@@ -425,29 +427,32 @@ end
 
 ShiftDownEvent = nil
 KeyDownEvent = nil
-ShiftDownFlag = false
-OtherKeyDownFlag = false
--- shift按键状态纠错机制定时器
-ShiftStateCorrectionTimer = nil
--- 单击shift切换输入法
+-- Shfit 状态机："idle" | "pending" | "other"
+ShiftDownFlag = "idle"
+-- 单击 Shfit 切换输入法
 local function clickShiftSwitchInputMethod()
   -- 监听修饰键更改事件
   ShiftDownEvent = hs.eventtap.new({ hs.eventtap.event.types.flagsChanged }, function(event)
     local keyCode = event:getProperty(hs.eventtap.event.properties.keyboardEventKeycode)
 
-    -- keyCode = 56(left shift), 60(right shift)
-    if keyCode == 56 or keyCode == 60 then
-      if not ShiftDownFlag then
-        -- shift按下
-        ShiftDownFlag = true
-        OtherKeyDownFlag = false
-      else
-        -- shift松开
-        if not OtherKeyDownFlag then
-          switchInputMethod()
-        end
-        ShiftDownFlag = false
+    -- 非 Shift，忽略
+    if keyCode ~= 56 and keyCode ~= 60 then
+      return false
+    end
+
+    local shiftPressed = event:getFlags().shift
+
+    if shiftPressed then
+      -- Shift 按下
+      ShiftDownFlag = "pending"
+    else
+      -- Shift 松开
+      if ShiftDownFlag == "pending" then
+        -- 切换输入法
+        switchInputMethod()
       end
+      -- 松开后回到 idle
+      ShiftDownFlag = "idle"
     end
 
     -- 不阻止默认的事件
@@ -457,22 +462,15 @@ local function clickShiftSwitchInputMethod()
 
   -- 监听修饰键以外的按键按下事件
   KeyDownEvent = hs.eventtap.new({ hs.eventtap.event.types.keyDown }, function(event)
-    OtherKeyDownFlag = true
+    if ShiftDownFlag == "pending" then
+      -- 不触发切换
+      ShiftDownFlag = "other"
+    end
+
     -- 不阻止默认的事件
     return false
   end)
   KeyDownEvent:start()
-
-  -- 启动纠错机制
-  -- ShiftStateCorrectionTimer = hs.timer.doEvery(5, function()
-  --   local currentFlags = hs.eventtap.checkKeyboardModifiers()
-  --   if ShiftDownFlag and not currentFlags.shift then
-  --     hs.alert.show("触发 shift 按键状态纠错机制")
-  --     -- 如果内部状态显示 shift 按下，但实际上已松开，则重置状态变量
-  --     ShiftDownFlag = false
-  --     OtherKeyDownFlag = false
-  --   end
-  -- end)
 end
 
 
@@ -603,7 +601,7 @@ bindF13Key("right", function() changeWindowLayout("right") end)
 -- 移动窗口到下一个屏幕
 bindF13Key("u", moveWindowNextScreen)
 
--- 单击shift切换输入法
+-- 单击 Shift 切换输入法
 clickShiftSwitchInputMethod()
 
 -- 输入法切换弹窗
@@ -620,17 +618,17 @@ mouseLinearReverseScroll()
 -- 点击鼠标侧键切换桌面
 clickMouseSideButtonSwitchDesktop()
 
--- 定时同步文件到iCloud
+-- 定时同步文件到 iCloud
 -- syncFileToICloud({
 --   {
---     sourceFile = "/Users/qdz/Desktop/temp.txt",
+--     sourceFile = "/Users/xxx/Desktop/temp.txt",
 --     targetDir = os.getenv("HOME") .. "/Library/Mobile Documents/com~apple~CloudDocs",
 --     maxBackupNumber = 5,
 --     backupIntervalSeconds = 60 * 30
 --   },
 -- })
 
--- 在Hammerspoon退出时执行相关操作
+-- 在 Hammerspoon 退出时执行相关操作
 hs.shutdownCallback = function()
   -- 撤销 CapsLock 映射到 F13
   removeCapsLockToF13()
