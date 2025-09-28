@@ -85,6 +85,10 @@ end
 F13Modal = hs.hotkey.modal.new()
 -- F13 热键绑定
 F13HotkeyBinding = nil
+-- 是否触发长按 CapsLock
+CapsLockLongPressTriggered = false
+-- CapsLock 长按定时器
+CapsLockLongPressTimer = nil
 -- 将 CapsLock 映射到 F13
 local function remapCapsLockToF13()
   -- 将 CapsLock (0x700000039) 重映射到 F13 (0x700000068)
@@ -100,10 +104,27 @@ local function remapCapsLockToF13()
   end
 
   F13HotkeyBinding = hs.hotkey.bind({}, 'f13', function()
+    -- 进入模态
     F13Modal:enter()
-    -- 按下就发送 Esc，不关注 modal 状态
-    sendKey({}, "escape")
+
+    -- 使用定时器判断是否长按 CapsLock
+    CapsLockLongPressTriggered = false
+    CapsLockLongPressTimer = hs.timer.doAfter(0.25, function()
+      CapsLockLongPressTriggered = true
+    end)
   end, function()
+    -- 停止定时器
+    if CapsLockLongPressTimer then
+      CapsLockLongPressTimer:stop()
+      CapsLockLongPressTimer = nil
+    end
+
+    -- 发送 Esc
+    if not CapsLockLongPressTriggered then
+      sendKey({}, "escape")
+    end
+
+    -- 退出模态
     F13Modal:exit()
   end)
 end
