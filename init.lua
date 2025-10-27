@@ -80,17 +80,13 @@ local function readDirFiles(dir)
   return files
 end
 
-
--- 创建 F13 模态环境
-F13Modal = hs.hotkey.modal.new()
--- F13 热键绑定
-F13HotkeyBinding = nil
--- 是否触发长按 CapsLock
-CapsLockLongPressTriggered = false
--- CapsLock 长按定时器
-CapsLockLongPressTimer = nil
+-- CapsLock 按下期间是否有其他键按下
+CapsLockOtherKeyPressed = false
 -- 将 CapsLock 映射到 F13
 local function remapCapsLockToF13()
+  -- 创建 F13 模态环境
+  local f13Modal = hs.hotkey.modal.new()
+
   -- 将 CapsLock (0x700000039) 重映射到 F13 (0x700000068)
   local command =
   "hidutil property --set '{\"UserKeyMapping\":[{\"HIDKeyboardModifierMappingSrc\": 0x700000039, \"HIDKeyboardModifierMappingDst\": 0x700000068}]}'"
@@ -103,77 +99,79 @@ local function remapCapsLockToF13()
     return
   end
 
-  F13HotkeyBinding = hs.hotkey.bind({}, 'f13', function()
+  local f13HotkeyBinding = hs.hotkey.bind({}, 'f13', function()
+    -- 开始重置状态
+    CapsLockOtherKeyPressed = false
     -- 进入模态
-    F13Modal:enter()
-
-    -- 使用定时器判断是否长按 CapsLock
-    CapsLockLongPressTriggered = false
-    CapsLockLongPressTimer = hs.timer.doAfter(0.25, function()
-      CapsLockLongPressTriggered = true
-    end)
+    f13Modal:enter()
   end, function()
-    -- 停止定时器
-    if CapsLockLongPressTimer then
-      CapsLockLongPressTimer:stop()
-      CapsLockLongPressTimer = nil
-    end
-
-    -- 发送 Esc
-    if not CapsLockLongPressTriggered then
+    -- 如果 CapsLock 是单独按下则发送Esc
+    if not CapsLockOtherKeyPressed then
       sendKey({}, "escape")
     end
 
     -- 退出模态
-    F13Modal:exit()
+    f13Modal:exit()
+    -- 结束重置状态
+    CapsLockOtherKeyPressed = false
   end)
-end
 
-
--- 撤销 CapsLock 映射到 F13
-local function removeCapsLockToF13()
-  -- 设置空的映射数组来清除所有映射
-  local command = "hidutil property --set '{\"UserKeyMapping\":[]}'"
-  local success = os.execute(command)
-
-  if success then
-    hs.alert.show("撤销 CapsLock 映射为 F13")
-  else
-    hs.alert.show("撤销 CapsLock 映射为 F13 失败")
-  end
-
-  -- 清除 F13 热键绑定（是否必要存疑，为了逻辑完整性）
-  if F13HotkeyBinding then
-    F13HotkeyBinding:delete()
-    F13HotkeyBinding = nil
-  end
-
-  -- 退出模态
-  F13Modal:exit()
+  return f13Modal, f13HotkeyBinding
 end
 
 
 -- 绑定 F13 按键，支持按键重复
-local function bindF13Key(key, fn, shouldRepeat)
+local function bindF13Key(f13Modal, key, fn, shouldRepeat)
   shouldRepeat = shouldRepeat or false
   if shouldRepeat then
-    F13Modal:bind({}, key,
+    f13Modal:bind({}, key,
       -- pressedfn (按下时触发)
-      function() fn() end,
+      function()
+        CapsLockOtherKeyPressed = true
+        fn()
+      end,
       -- releasedfn (松开时触发)
       function() end,
       -- repeatfn (重复时触发)
       function() fn() end
     )
   else
-    F13Modal:bind({}, key,
+    f13Modal:bind({}, key,
       -- pressedfn (按下时触发)
-      function() fn() end,
+      function()
+        CapsLockOtherKeyPressed = true
+        fn()
+      end,
       -- releasedfn (松开时触发)
       function() end,
       -- repeatfn (重复时触发)
       function() end
     )
+  end
+end
+
+
+-- 撤销 CapsLock 映射到 F13
+local function removeCapsLockToF13(f13Modal, f13HotkeyBinding)
+  -- 删除 F13 热键绑定
+  if f13HotkeyBinding then
+    f13HotkeyBinding:delete()
+    f13HotkeyBinding = nil
+  end
+
+  -- 退出模态
+  if f13Modal then
+    f13Modal:exit()
+    f13Modal = nil
+  end
+
+  -- 清除映射
+  local command = "hidutil property --set '{\"UserKeyMapping\":[]}'"
+  local success = os.execute(command)
+  if success then
+    hs.alert.show("撤销 CapsLock 映射为 F13")
+  else
+    hs.alert.show("撤销 CapsLock 映射为 F13 失败")
   end
 end
 
@@ -294,7 +292,7 @@ end
 
 ClipboardTool = nil
 -- 剪切板
-local function toggleClipboard(hotkey)
+local function toggleClipboard(f13Modal, hotkey)
   ClipboardTool = hs.loadSpoon("ClipboardTool")
   -- 显示最大长度
   ClipboardTool.display_max_length = 200
@@ -310,7 +308,7 @@ local function toggleClipboard(hotkey)
   ClipboardTool:start()
 
   -- 触发剪贴板界面显示
-  bindF13Key(hotkey, function() ClipboardTool:toggleClipboard() end)
+  bindF13Key(f13Modal, hotkey, function() ClipboardTool:toggleClipboard() end)
 end
 
 
@@ -584,43 +582,44 @@ end
 --------------------------------------------------------------------------------
 
 -- 将 CapsLock 键映射为 F13 键
-remapCapsLockToF13()
+F13Modal, F13HotkeyBinding = remapCapsLockToF13()
+-- removeCapsLockToF13(F13Modal, F13HotkeyBinding)
 
 -- 防止系统休眠
-bindF13Key("p", createPreventSleepModule())
+bindF13Key(F13Modal, "p", createPreventSleepModule())
 
 -- 开关音量
-bindF13Key("g", toggleAudio)
+bindF13Key(F13Modal, "g", toggleAudio)
 
 -- 快捷启动应用
-bindF13Key("r", function() launchApp("Terminal") end)
-bindF13Key("f", function() launchApp("Finder") end)
-bindF13Key("space", function() launchApp("Launchpad") end)
-toggleClipboard("v")
+bindF13Key(F13Modal, "r", function() launchApp("Terminal") end)
+bindF13Key(F13Modal, "f", function() launchApp("Finder") end)
+bindF13Key(F13Modal, "space", function() launchApp("Launchpad") end)
+toggleClipboard(F13Modal, "v")
 
-bindF13Key("w", function() launchApp("/Applications/WeChat.app") end)
-bindF13Key("s", function() launchApp("/Applications/Visual Studio Code.app") end)
-bindF13Key("d", function() launchApp("/Applications/网易有道翻译.app") end)
-bindF13Key("c", function() launchApp("/Applications/Google Chrome.app") end)
+bindF13Key(F13Modal, "w", function() launchApp("/Applications/WeChat.app") end)
+bindF13Key(F13Modal, "s", function() launchApp("/Applications/Visual Studio Code.app") end)
+bindF13Key(F13Modal, "d", function() launchApp("/Applications/网易有道翻译.app") end)
+bindF13Key(F13Modal, "c", function() launchApp("/Applications/Google Chrome.app") end)
 
 -- 实现支持重复的 Vim 风格方向键
-bindF13Key("h", function() sendKey({}, "left") end, true)
-bindF13Key("j", function() sendKey({}, "down") end, true)
-bindF13Key("k", function() sendKey({}, "up") end, true)
-bindF13Key("l", function() sendKey({}, "right") end, true)
+bindF13Key(F13Modal, "h", function() sendKey({}, "left") end, true)
+bindF13Key(F13Modal, "j", function() sendKey({}, "down") end, true)
+bindF13Key(F13Modal, "k", function() sendKey({}, "up") end, true)
+bindF13Key(F13Modal, "l", function() sendKey({}, "right") end, true)
 
 -- 切换标签页
-bindF13Key("i", prevTab)
-bindF13Key("o", nextTab)
+bindF13Key(F13Modal, "i", prevTab)
+bindF13Key(F13Modal, "o", nextTab)
 
 -- 改变窗口布局
-bindF13Key("up", function() changeWindowLayout("maximize") end)
-bindF13Key("down", function() changeWindowLayout("fullScreen") end)
-bindF13Key("left", function() changeWindowLayout("left") end)
-bindF13Key("right", function() changeWindowLayout("right") end)
+bindF13Key(F13Modal, "up", function() changeWindowLayout("maximize") end)
+bindF13Key(F13Modal, "down", function() changeWindowLayout("fullScreen") end)
+bindF13Key(F13Modal, "left", function() changeWindowLayout("left") end)
+bindF13Key(F13Modal, "right", function() changeWindowLayout("right") end)
 
 -- 移动窗口到下一个屏幕
-bindF13Key("u", moveWindowNextScreen)
+bindF13Key(F13Modal, "u", moveWindowNextScreen)
 
 -- 单击 Shift 切换输入法
 clickShiftSwitchInputMethod()
@@ -631,6 +630,8 @@ inputMethodSwitchAlert()
 -- 聚焦app时切换指定输入法
 focusAppSwitchInputMethod({
   ['/System/Applications/Utilities/Terminal.app'] = InputMethodEnum.english,
+  ['/Applications/Termius.app'] = InputMethodEnum.english,
+  ['/Applications/FinalShell.app'] = InputMethodEnum.english,
 })
 
 -- 鼠标线性反向滚动
@@ -648,9 +649,3 @@ clickMouseSideButtonSwitchDesktop()
 --     backupIntervalSeconds = 60 * 30
 --   },
 -- })
-
--- 在 Hammerspoon 退出时执行相关操作
-hs.shutdownCallback = function()
-  -- 撤销 CapsLock 映射到 F13
-  removeCapsLockToF13()
-end
